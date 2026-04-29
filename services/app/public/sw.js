@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rtdb-manager-v3';
+const CACHE_NAME = 'rtdb-manager-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -20,8 +20,6 @@ self.addEventListener('activate', (event) => {
         keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
       ))
       .then(() => self.clients.claim())
-      .then(() => self.clients.matchAll({ type: 'window' }))
-      .then((clients) => Promise.all(clients.map((client) => client.navigate(client.url))))
   );
 });
 

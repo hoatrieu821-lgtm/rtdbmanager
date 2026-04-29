@@ -9,11 +9,19 @@ const projectUi = {
   sortDir: localStorage.getItem('rtdb.projects.sortDir') || 'asc'
 };
 
+const LATENCY_CHECK_CONCURRENCY = 3;
+const LATENCY_CACHE_TTL_MS = 60_000;
+
 if (!['cards', 'grid', 'list'].includes(projectUi.viewMode)) {
   projectUi.viewMode = 'cards';
 }
 
 let currentRoot = null;
+let projectsLoading = false;
+let latencyRunId = 0;
+let activeLatencyChecks = 0;
+const latencyQueue = [];
+const latencyCache = new Map();
 
 /**
  * Renders the projects page.
@@ -74,7 +82,12 @@ export async function renderProjects() {
     });
   });
 
-  await loadProjects(root);
+  renderProjectsLoading(root);
+  loadProjects(root).catch((error) => {
+    renderProjectsError(root, error);
+    toast.error(error.message);
+  });
+
   return root;
 }
 
@@ -84,9 +97,60 @@ export async function renderProjects() {
  * @returns {Promise<void>} Resolves after load.
  */
 async function loadProjects(root = currentRoot || document) {
-  const response = await apiFetch('/projects');
-  store.projects = response.projects;
-  renderProjectsList(root);
+  projectsLoading = true;
+  try {
+    const response = await apiFetch('/projects');
+    store.projects = Array.isArray(response.projects) ? response.projects : [];
+    projectsLoading = false;
+    renderProjectsList(root);
+  } catch (error) {
+    projectsLoading = false;
+    throw error;
+  }
+}
+
+/**
+ * Shows the initial projects loading state.
+ * @param {HTMLElement} root Page root.
+ * @returns {void}
+ */
+function renderProjectsLoading(root) {
+  const container = root.querySelector('.projects');
+  if (!container) return;
+
+  container.className = 'projects';
+  container.innerHTML = `
+    <div class="rounded-md border border-gray-800 bg-gray-900 px-5 py-8 text-sm text-gray-400">
+      Loading projects...
+    </div>
+  `;
+}
+
+/**
+ * Shows a projects loading error with a retry action.
+ * @param {HTMLElement} root Page root.
+ * @param {Error} error Loading error.
+ * @returns {void}
+ */
+function renderProjectsError(root, error) {
+  const container = root.querySelector('.projects');
+  if (!container || root !== currentRoot) return;
+
+  container.className = 'projects';
+  container.innerHTML = `
+    <div class="rounded-md border border-red-500/40 bg-gray-900 px-5 py-8 text-sm text-red-300">
+      <div>Could not load projects: ${escapeHtml(error.message)}</div>
+      <button type="button" class="retry-projects mt-4 rounded-md border border-gray-700 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800">Retry</button>
+    </div>
+  `;
+
+  container.querySelector('.retry-projects').addEventListener('click', () => {
+    renderProjectsLoading(root);
+    loadProjects(root).catch((retryError) => {
+      renderProjectsError(root, retryError);
+      toast.error(retryError.message);
+    });
+  });
 }
 
 /**
@@ -96,6 +160,16 @@ async function loadProjects(root = currentRoot || document) {
  */
 function renderProjectsList(root) {
   const container = root.querySelector('.projects');
+  if (!container) return;
+
+  latencyQueue.length = 0;
+  const currentLatencyRunId = ++latencyRunId;
+
+  if (projectsLoading && !store.projects.length) {
+    renderProjectsLoading(root);
+    return;
+  }
+
   const projects = getSortedProjects(getFilteredProjects());
   updateViewButtons(root);
 
@@ -110,16 +184,16 @@ function renderProjectsList(root) {
   }
 
   if (projectUi.viewMode === 'grid') {
-    renderProjectGrid(container, projects);
+    renderProjectGrid(container, projects, currentLatencyRunId);
     return;
   }
 
   if (projectUi.viewMode === 'list') {
-    renderProjectList(container, projects);
+    renderProjectList(container, projects, currentLatencyRunId);
     return;
   }
 
-  renderProjectCards(container, projects);
+  renderProjectCards(container, projects, currentLatencyRunId);
 }
 
 /**
@@ -246,9 +320,10 @@ function updateViewButtons(root) {
  * Renders project cards.
  * @param {HTMLElement} container Cards container.
  * @param {object[]} projects Projects.
+ * @param {number} currentLatencyRunId Active latency run id.
  * @returns {void}
  */
-function renderProjectCards(container, projects) {
+function renderProjectCards(container, projects, currentLatencyRunId) {
   container.className = 'projects grid gap-3 lg:grid-cols-2 xl:grid-cols-3';
   container.innerHTML = '';
 
@@ -276,7 +351,7 @@ function renderProjectCards(container, projects) {
 
     wireProjectActions(card, project);
     container.append(card);
-    checkLatency(project, card.querySelector('.latency'));
+    queueLatencyCheck(project, card.querySelector('.latency'), currentLatencyRunId);
   }
 }
 
@@ -284,9 +359,10 @@ function renderProjectCards(container, projects) {
  * Renders projects as a compact grid/table.
  * @param {HTMLElement} container View container.
  * @param {object[]} projects Projects.
+ * @param {number} currentLatencyRunId Active latency run id.
  * @returns {void}
  */
-function renderProjectGrid(container, projects) {
+function renderProjectGrid(container, projects, currentLatencyRunId) {
   container.className = 'projects overflow-hidden rounded-md border border-gray-800 bg-gray-900';
   container.innerHTML = `
     <div class="overflow-x-auto">
@@ -334,7 +410,7 @@ function renderProjectGrid(container, projects) {
 
     wireProjectActions(row, project);
     tbody.append(row);
-    checkLatency(project, row.querySelector('.latency'));
+    queueLatencyCheck(project, row.querySelector('.latency'), currentLatencyRunId);
   }
 
   wireSortHeaders(container);
@@ -344,9 +420,10 @@ function renderProjectGrid(container, projects) {
  * Renders projects as a dense list.
  * @param {HTMLElement} container View container.
  * @param {object[]} projects Projects.
+ * @param {number} currentLatencyRunId Active latency run id.
  * @returns {void}
  */
-function renderProjectList(container, projects) {
+function renderProjectList(container, projects, currentLatencyRunId) {
   container.className = 'projects overflow-x-auto rounded-md border border-gray-800 bg-gray-900';
   container.innerHTML = `
     <div class="grid min-w-[760px] grid-cols-[minmax(220px,1fr)_110px_140px_180px] gap-3 border-b border-gray-800 px-4 py-3 text-xs uppercase tracking-normal text-gray-400">
@@ -383,7 +460,7 @@ function renderProjectList(container, projects) {
 
     wireProjectActions(row, project);
     body.append(row);
-    checkLatency(project, row.querySelector('.latency'));
+    queueLatencyCheck(project, row.querySelector('.latency'), currentLatencyRunId);
   }
 
   wireSortHeaders(container);
@@ -405,20 +482,93 @@ function wireProjectActions(element, project) {
 }
 
 /**
+ * Queues a project latency check without flooding the backend.
+ * @param {object} project Project.
+ * @param {HTMLElement} target Target element.
+ * @param {number} currentLatencyRunId Active latency run id.
+ * @returns {void}
+ */
+function queueLatencyCheck(project, target, currentLatencyRunId) {
+  if (!target) return;
+
+  const cached = latencyCache.get(project.id);
+  if (cached && Date.now() - cached.checkedAt < LATENCY_CACHE_TTL_MS) {
+    applyLatencyResult(target, cached);
+    return;
+  }
+
+  latencyQueue.push({ project, target, currentLatencyRunId });
+  drainLatencyQueue();
+}
+
+/**
+ * Starts queued latency checks up to the concurrency limit.
+ * @returns {void}
+ */
+function drainLatencyQueue() {
+  while (activeLatencyChecks < LATENCY_CHECK_CONCURRENCY && latencyQueue.length) {
+    const job = latencyQueue.shift();
+    if (job.currentLatencyRunId !== latencyRunId || !job.target.isConnected) {
+      continue;
+    }
+
+    activeLatencyChecks += 1;
+    checkLatency(job.project, job.target, job.currentLatencyRunId)
+      .finally(() => {
+        activeLatencyChecks -= 1;
+        drainLatencyQueue();
+      });
+  }
+}
+
+/**
  * Checks project latency and updates its badge.
  * @param {object} project Project.
  * @param {HTMLElement} target Target element.
+ * @param {number} currentLatencyRunId Active latency run id.
  * @returns {Promise<void>} Resolves after check.
  */
-async function checkLatency(project, target) {
+async function checkLatency(project, target, currentLatencyRunId) {
+  if (currentLatencyRunId !== latencyRunId || !target.isConnected) return;
+
   try {
     const response = await apiFetch(`/projects/${project.id}/test`);
-    target.textContent = `${response.result.latency} ms`;
-    target.className = 'latency text-green-400';
+    const result = {
+      ok: true,
+      latency: response.result.latency,
+      checkedAt: Date.now()
+    };
+    latencyCache.set(project.id, result);
+    if (currentLatencyRunId === latencyRunId && target.isConnected) {
+      applyLatencyResult(target, result);
+    }
   } catch {
-    target.textContent = 'Offline';
-    target.className = 'latency text-red-300';
+    const result = {
+      ok: false,
+      checkedAt: Date.now()
+    };
+    latencyCache.set(project.id, result);
+    if (currentLatencyRunId === latencyRunId && target.isConnected) {
+      applyLatencyResult(target, result);
+    }
   }
+}
+
+/**
+ * Applies a cached or freshly fetched latency result.
+ * @param {HTMLElement} target Target element.
+ * @param {{ok: boolean, latency?: number}} result Latency result.
+ * @returns {void}
+ */
+function applyLatencyResult(target, result) {
+  if (result.ok) {
+    target.textContent = `${result.latency} ms`;
+    target.className = 'latency text-green-400';
+    return;
+  }
+
+  target.textContent = 'Offline';
+  target.className = 'latency text-red-300';
 }
 
 /**
@@ -551,6 +701,9 @@ function openProjectModal(project = null) {
         method: project ? 'PUT' : 'POST',
         body: JSON.stringify(payload)
       });
+      if (project) {
+        latencyCache.delete(project.id);
+      }
       modal.close();
       toast.success(project ? 'Project updated' : 'Project created');
       await loadProjects();
@@ -571,6 +724,7 @@ async function deleteProject(project) {
   }
 
   await apiFetch(`/projects/${project.id}`, { method: 'DELETE' });
+  latencyCache.delete(project.id);
   toast.success('Project deleted');
   await loadProjects();
 }

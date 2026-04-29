@@ -1,4 +1,4 @@
-import { navigate, signInWithGoogle, toast } from '../app.js';
+import { navigate, preloadFirebaseAuth, signInWithGoogle, toast } from '../app.js';
 
 /**
  * Renders the login page.
@@ -23,6 +23,9 @@ export function renderLogin() {
 
   const button = root.querySelector('.login');
   const errorBox = root.querySelector('[role="alert"]');
+
+  preloadFirebaseAuth().catch(() => {});
+
   button.addEventListener('click', async () => {
     button.disabled = true;
     button.textContent = 'Signing in...';

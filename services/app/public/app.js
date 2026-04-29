@@ -1,5 +1,3 @@
-import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import { Toast } from './components/Toast.js';
 import { Sidebar } from './components/Sidebar.js';
 import { renderLogin } from './pages/login.js';
@@ -19,6 +17,28 @@ export const store = {
 export const toast = new Toast();
 
 let firebaseApp = null;
+let firebaseSdkPromise = null;
+
+/**
+ * Loads Firebase Auth modules only when sign-in needs them.
+ * @returns {Promise<object>} Firebase app/auth module helpers.
+ */
+async function loadFirebaseSdk() {
+  if (!firebaseSdkPromise) {
+    firebaseSdkPromise = Promise.all([
+      import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js')
+    ]).then(([appModule, authModule]) => ({
+      initializeApp: appModule.initializeApp,
+      getApps: appModule.getApps,
+      getAuth: authModule.getAuth,
+      GoogleAuthProvider: authModule.GoogleAuthProvider,
+      signInWithPopup: authModule.signInWithPopup
+    }));
+  }
+
+  return firebaseSdkPromise;
+}
 
 /**
  * Applies the current visual theme to the document.
@@ -99,12 +119,28 @@ async function loadFirebaseConfig() {
 
 /**
  * Returns the Firebase Auth instance.
- * @returns {Promise<import('firebase/auth').Auth>} Firebase Auth.
+ * @returns {Promise<object>} Firebase Auth helpers.
  */
 async function getFirebaseAuth() {
-  const config = await loadFirebaseConfig();
-  firebaseApp = getApps().length ? getApps()[0] : initializeApp(config);
-  return getAuth(firebaseApp);
+  const [config, sdk] = await Promise.all([
+    loadFirebaseConfig(),
+    loadFirebaseSdk()
+  ]);
+
+  firebaseApp = sdk.getApps().length ? sdk.getApps()[0] : sdk.initializeApp(config);
+  return {
+    auth: sdk.getAuth(firebaseApp),
+    GoogleAuthProvider: sdk.GoogleAuthProvider,
+    signInWithPopup: sdk.signInWithPopup
+  };
+}
+
+/**
+ * Warms Firebase Auth in the background after the login page is visible.
+ * @returns {Promise<object>} Firebase Auth helpers.
+ */
+export async function preloadFirebaseAuth() {
+  return getFirebaseAuth();
 }
 
 /**
@@ -141,7 +177,7 @@ function normalizeAuthError(error) {
  * @returns {Promise<object>} Authenticated user.
  */
 export async function signInWithGoogle() {
-  const auth = await getFirebaseAuth();
+  const { auth, GoogleAuthProvider, signInWithPopup } = await getFirebaseAuth();
   const provider = new GoogleAuthProvider();
   let credential;
 
