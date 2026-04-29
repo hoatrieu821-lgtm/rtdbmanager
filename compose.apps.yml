@@ -1,0 +1,54 @@
+# ================================================================
+#  compose.apps.yml — Application Layer
+#  Builds RTDB Manager from ./services/app
+#
+#  Subdomain: ${PROJECT_NAME}.${DOMAIN}
+#
+#  Minimal required env:
+#    APP_PORT   — Port app listens on inside container (mapped to PORT)
+#    PROJECT_NAME, DOMAIN, CADDY_AUTH_USER, CADDY_AUTH_HASH
+#    MASTER_FIREBASE_*, SESSION_SECRET, CRYPTO_KEY, FIREBASE_API_KEY,
+#    API_SECRET_KEY, ALLOWED_EMAILS
+# ================================================================
+
+services:
+  app:
+    image: "${PROJECT_NAME:-myapp}-app:local"
+    build:
+      context: ./services/app
+      dockerfile: Dockerfile
+    # Compose vẫn ưu tiên giá trị khai báo explicit trong environment bên dưới.
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: "${NODE_ENV:-production}"
+      PORT: "${APP_PORT:-3000}"
+      APP_BASE_URL: "${APP_BASE_URL:-http://localhost:3000}"
+    ports:
+      - "127.0.0.1:${APP_HOST_PORT:-3000}:${APP_PORT:-3000}"
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT:-./.docker-volumes}/app/logs:/app/logs
+    labels:
+      # Public HTTP sites behind Cloudflare Tunnel.
+      - "caddy=http://${PROJECT_NAME}.${DOMAIN}, http://main.${DOMAIN}, http://${DOMAIN}, http://${PROJECT_NAME:-myapp}.${TAILSCALE_TAILNET_DOMAIN:-tailnet.local}"
+      - "caddy.reverse_proxy={{upstreams ${APP_PORT:-3000}}}"
+      - "caddy.basic_auth=/*"
+      - "caddy.basic_auth.${CADDY_AUTH_USER:-admin}=${CADDY_AUTH_HASH}"
+      # Internal HTTPS site for Tailscale / trusted LAN access.
+      - "caddy_1=https://${PROJECT_NAME:-myapp}.${TAILSCALE_TAILNET_DOMAIN:-tailnet.local}"
+      - "caddy_1.tls=internal"
+      - "caddy_1.reverse_proxy={{upstreams ${APP_PORT:-3000}}}"
+      - "caddy_1.basic_auth=/*"
+      - "caddy_1.basic_auth.${CADDY_AUTH_USER:-admin}=${CADDY_AUTH_HASH}"
+    networks: [app_net]
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - "CMD"
+        - "sh"
+        - "-c"
+        - "wget -qO- --header=\"X-API-Key: $${API_SECRET_KEY}\" http://localhost:${APP_PORT:-3000}${HEALTH_PATH:-/api/v1/health} || exit 1"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

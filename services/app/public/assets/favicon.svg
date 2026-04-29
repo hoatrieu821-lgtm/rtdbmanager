@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="RTDB Manager">
+  <rect width="128" height="128" rx="24" fill="#2563eb"/>
+  <path d="M30 34c0-8 15-14 34-14s34 6 34 14v60c0 8-15 14-34 14s-34-6-34-14V34z" fill="#0f172a" opacity=".22"/>
+  <ellipse cx="64" cy="34" rx="34" ry="14" fill="#dbeafe"/>
+  <path d="M30 34v20c0 8 15 14 34 14s34-6 34-14V34c0 8-15 14-34 14S30 42 30 34z" fill="#bfdbfe"/>
+  <path d="M30 56v20c0 8 15 14 34 14s34-6 34-14V56c0 8-15 14-34 14s-34-6-34-14z" fill="#93c5fd"/>
+  <path d="M30 78v16c0 8 15 14 34 14s34-6 34-14V78c0 8-15 14-34 14s-34-6-34-14z" fill="#60a5fa"/>
+  <path d="M49 40h30v8H49zm0 22h30v8H49zm0 22h22v8H49z" fill="#0f172a" opacity=".72"/>
+</svg>

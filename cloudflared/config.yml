@@ -1,0 +1,15 @@
+tunnel: 9c25d37e-7b50-420e-bdcc-add788802297
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: rtdbmanager.dpdns.org
+    service: http://caddy:80
+  - hostname: main.rtdbmanager.dpdns.org
+    service: http://caddy:80
+  - hostname: ttyd.rtdbmanager.dpdns.org
+    service: http://caddy:80
+  - hostname: dozzle.rtdbmanager.dpdns.org
+    service: http://caddy:80
+  - hostname: files.rtdbmanager.dpdns.org
+    service: http://caddy:80
+  - service: http_status:404

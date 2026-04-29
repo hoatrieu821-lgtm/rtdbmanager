@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#030712">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="RTDB Manager">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/assets/icon-192.png" sizes="192x192" type="image/png">
+    <link rel="apple-touch-icon" href="/assets/icon-192.png">
+    <title>RTDB Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace']
+            }
+          }
+        }
+      };
+    </script>
+    <style>
+      .theme-light body,
+      .theme-light .bg-gray-950 { background-color: #f8fafc !important; color: #0f172a !important; }
+      .theme-light .bg-gray-900 { background-color: #ffffff !important; }
+      .theme-light .bg-gray-800 { background-color: #e2e8f0 !important; }
+      .theme-light .border-gray-900,
+      .theme-light .border-gray-800,
+      .theme-light .border-gray-700 { border-color: #cbd5e1 !important; }
+      .theme-light .text-gray-100,
+      .theme-light .text-gray-200,
+      .theme-light .text-gray-300 { color: #0f172a !important; }
+      .theme-light .text-gray-400,
+      .theme-light .text-gray-500 { color: #475569 !important; }
+      .theme-light .text-blue-300,
+      .theme-light .text-blue-400 { color: #1d4ed8 !important; }
+      .theme-light .text-green-300,
+      .theme-light .text-green-400 { color: #15803d !important; }
+      .theme-light .text-red-300,
+      .theme-light .text-red-400 { color: #b91c1c !important; }
+      .theme-light .text-yellow-300,
+      .theme-light .text-yellow-400 { color: #a16207 !important; }
+      .theme-light .text-purple-400 { color: #7e22ce !important; }
+      .theme-light input,
+      .theme-light select,
+      .theme-light textarea,
+      .theme-light code { background-color: #ffffff !important; color: #0f172a !important; }
+      .theme-light .hover\:bg-gray-900:hover,
+      .theme-light .hover\:bg-gray-800:hover { background-color: #e2e8f0 !important; }
+      .theme-light .bg-black\/70 { background-color: rgb(15 23 42 / 0.45) !important; }
+    </style>
+  </head>
+  <body class="bg-gray-950 text-gray-100 antialiased">
+    <div id="app" class="min-h-screen"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
