@@ -573,10 +573,12 @@ function openProjectModal(project = null) {
   footer.querySelector('.test').addEventListener('click', async () => {
     try {
       const payload = buildPayload();
-      const response = project && !payload.credentialsJson && !payload.secret
-        ? await apiFetch(`/projects/${project.id}/test`)
-        : await apiFetch('/projects/test', { method: 'POST', body: JSON.stringify(payload) });
-      toast.success(`Connection OK (${response.result.latency} ms)`);
+      if (project && !payload.credentialsJson && !payload.secret) {
+        await apiFetch(`/projects/${project.id}/test`);
+      } else {
+        await apiFetch('/projects/test', { method: 'POST', body: JSON.stringify(payload) });
+      }
+      toast.success('Connection OK');
     } catch (error) {
       toast.error(error.message);
     }

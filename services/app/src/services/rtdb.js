@@ -283,11 +283,9 @@ export async function deleteData(project, path) {
  * Tests connectivity to a managed RTDB project.
  * @param {object} project Project config with plaintext credentials or secret.
  * @param {number} timeoutMs Timeout in milliseconds.
- * @returns {Promise<{ok: boolean, latency: number, rootKeys: string[], error?: string, message?: string}>} Test result.
+ * @returns {Promise<{ok: boolean, rootKeys: string[], error?: string, message?: string}>} Test result.
  */
 export async function testProjectConnection(project, timeoutMs = 5_000) {
-  const startedAt = Date.now();
-
   try {
     let value;
 
@@ -309,13 +307,11 @@ export async function testProjectConnection(project, timeoutMs = 5_000) {
 
     return {
       ok: true,
-      latency: Date.now() - startedAt,
       rootKeys: value && typeof value === 'object' ? Object.keys(value).slice(0, 20) : []
     };
   } catch (error) {
     return {
       ok: false,
-      latency: Date.now() - startedAt,
       error: error.code || 'CONNECTION_FAILED',
       message: error.code === 'CONNECTION_TIMEOUT'
         ? 'Cannot reach database after 5s'
