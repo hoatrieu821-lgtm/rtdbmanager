@@ -111,7 +111,7 @@ export function createSessionMiddleware() {
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
-      secure: config.appBaseUrl.startsWith('https://'),
+      secure: 'auto',
       maxAge: DEFAULT_TTL_MS
     }
   });
